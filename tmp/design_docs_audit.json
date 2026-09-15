@@ -1,0 +1,63 @@
+{
+  "document_count": 9,
+  "local_links_checked": 14,
+  "files": [
+    {
+      "file": "README.md",
+      "bytes": 773,
+      "lines": 9,
+      "sha256": "24f1e3d4f54ef496be16cf6ca49afabc90c7fdb227115cb335f10ec6d763aa61"
+    },
+    {
+      "file": "tech_documents\\implementation\\00_总览与模块实施路线.md",
+      "bytes": 11055,
+      "lines": 157,
+      "sha256": "1087055f46195389f384d6135691107dadd079f6c6d4b73b9dc7954571523259"
+    },
+    {
+      "file": "tech_documents\\implementation\\01_项目结构_GitHub与远端环境.md",
+      "bytes": 18729,
+      "lines": 426,
+      "sha256": "766a76fa08b24ce330994ac511aa6f9ce28d10382caf63cbe8f2abed7552e141"
+    },
+    {
+      "file": "tech_documents\\implementation\\02_数据准备_RFTrans与ClearGrasp.md",
+      "bytes": 57764,
+      "lines": 805,
+      "sha256": "ac2db7d33a8b1d0c974cd56f1d2f6a9816e4d0a7ab0387d857d1de495eec0cc7"
+    },
+    {
+      "file": "tech_documents\\implementation\\03_DINOv3_H16plus_下载配置与特征接口.md",
+      "bytes": 42339,
+      "lines": 573,
+      "sha256": "db152b7968f149e011e53fedd50f089e6cbdec09ae8e40f9a2bb5e7ebc9e2b67"
+    },
+    {
+      "file": "tech_documents\\implementation\\04_模型设计_FAR教师与QK_LoRA.md",
+      "bytes": 20125,
+      "lines": 357,
+      "sha256": "ddfdf5d8023b51df0e05a212a4446b2e995f426ecee72a47c232bf17488ba486"
+    },
+    {
+      "file": "tech_documents\\implementation\\05_训练调度_Oracle与最小实验矩阵.md",
+      "bytes": 38155,
+      "lines": 516,
+      "sha256": "d931ad0a7e5ed16bef11e4713470bb343220ccba45db237b7d244f042351721b"
+    },
+    {
+      "file": "tech_documents\\implementation\\06_验证推理_RGB导出与验收.md",
+      "bytes": 35169,
+      "lines": 568,
+      "sha256": "0e35a26d02a9765e2058e3cf1cd4300f002740a438a361d4e5acc44bfa06f330"
+    },
+    {
+      "file": "tech_documents\\implementation\\07_开发任务拆分与需求验收.md",
+      "bytes": 11797,
+      "lines": 209,
+      "sha256": "436ee1b9287966598775e6f1c135c819fbf044d7a21144771c11b9fda2f0f71a"
+    }
+  ],
+  "errors": [],
+  "status": "pass",
+  "scope": "document structure, links, Python syntax, TOML and JSON syntax only; not execution"
+}
