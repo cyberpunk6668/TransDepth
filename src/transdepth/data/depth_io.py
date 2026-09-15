@@ -33,6 +33,16 @@ def read_rgb_u8(path: str | Path) -> np.ndarray:
 
 
 def read_depth_png_raw(path: str | Path) -> np.ndarray:
+    with Path(path).open("rb") as stream:
+        header = stream.read(26)
+    if (
+        len(header) != 26
+        or header[:8] != b"\x89PNG\r\n\x1a\n"
+        or header[12:16] != b"IHDR"
+        or header[24] != 16
+        or header[25] != 0
+    ):
+        raise DataEncodingError("RFTrans depth must be a 16-bit grayscale PNG")
     with Image.open(path) as image:
         raw = np.asarray(image).copy()
         mode = image.mode

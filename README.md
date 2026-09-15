@@ -97,13 +97,14 @@ bash scripts/server/run_train.sh h2 --fork-from /ssd/polyu/TransDepth/runs/rftra
 
 三卡固定为物理 GPU `0,3,5`，每卡 microbatch 1、累积 4、全局 batch 12。H1/H2 使用相同 seed、样本计划、T0、LoRA 初始化和更新预算；唯一研究差异是 FAR 关系项。
 
-### 4. ClearGrasp 仅 RGB 推理
+### 4. 合并导出与 ClearGrasp 仅 RGB 推理
 
 ```bash
-bash scripts/server/run_cleargrasp_inference.sh <H2-best.pt> /ssd/polyu/TransDepth/exports/cleargrasp_h2
+CUDA_VISIBLE_DEVICES=0 /ssd/polyu/TransDepth/envs/far/bin/python -m transdepth.cli.export --checkpoint <H2-best.pt> --output /ssd/polyu/TransDepth/exports/h2_rgb_only.pt
+bash scripts/server/run_cleargrasp_inference.sh /ssd/polyu/TransDepth/exports/h2_rgb_only.pt /ssd/polyu/TransDepth/exports/cleargrasp_h2
 ```
 
-预测为 `[384,512]` float32 米制 `.npy`；预测 manifest 不含 GT 路径。
+导出程序将 Q/K LoRA 合并到独立骨干表示，移除教师、trace 和 Oracle，并在固定 Dev RGB 上验证合并前后深度等价。预测为 `[384,512]` float32 米制 `.npy`；预测 manifest 不含 GT 路径。
 
 ## 文档
 

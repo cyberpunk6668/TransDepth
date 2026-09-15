@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pytest
 import torch
 from torch import nn
 
@@ -34,3 +35,13 @@ def test_trainable_only_checkpoint_round_trip(tmp_path: Path) -> None:
     path = tmp_path / "checkpoint.pt"
     atomic_torch_save({"schema_version": "td_checkpoint_v1", "value": 3}, path)
     assert load_checkpoint(path)["value"] == 3
+
+
+def test_partial_trainable_state_is_rejected_unless_explicitly_allowed() -> None:
+    model = nn.Sequential(nn.Linear(2, 2), nn.Linear(2, 1))
+    state = trainable_state_dict(model)
+    del state["1.bias"]
+    with pytest.raises(KeyError, match="omits trainable"):
+        load_trainable_state(model, state)
+    load_trainable_state(model, state, allowed_missing_substrings=("1.bias",))
+

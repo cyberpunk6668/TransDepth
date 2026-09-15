@@ -21,6 +21,7 @@ def test_metrics_use_fixed_gt_domain_and_metric_units() -> None:
 def _evaluation(sample: str, transparent: float, background: float, edge: float):
     return {
         "sample_id": sample,
+        "leakage_group_id": f"group-{sample}",
         "metrics": {
             "transparent": {"mae_mm": transparent},
             "background": {"mae_mm": background},

@@ -70,13 +70,27 @@ def parse_recorder_cad_ids(path: str | Path) -> tuple[str, ...]:
     return tuple(lines[4 + 6 * index] for index in range(count))
 
 
+def recorder_scene_group(path: str | Path) -> str:
+    normalized = "\n".join(
+        line.strip() for line in Path(path).read_text(encoding="utf-8").splitlines()
+    )
+    return "rftrans_scene_" + hashlib.sha256(normalized.encode()).hexdigest()[:24]
+
+
 def _stable_role_partition(records: list[SampleRecord], seed: int) -> list[SampleRecord]:
     expected = {"R_train": 4000, "R_dev": 500, "R_select": 250, "R_confirm": 250}
     if len(records) != sum(expected.values()):
         raise PairingError(f"expected 5000 official train frames, found {len(records)}")
+    group_ids = [record.leakage_group_id for record in records]
+    if len(set(group_ids)) != len(group_ids):
+        raise PairingError(
+            "duplicate recorder scene fingerprints require an explicit whole-group split"
+        )
     ranked = sorted(
         records,
-        key=lambda item: hashlib.sha256(f"{seed}:{item.sample_id}".encode()).digest(),
+        key=lambda item: hashlib.sha256(
+            f"{seed}:{item.leakage_group_id}".encode()
+        ).digest(),
     )
     assigned: dict[str, str] = {}
     cursor = 0
@@ -109,6 +123,7 @@ def scan_rftrans(
                 "metadata": prefix / "recorder" / f"record_{frame_id}.txt",
             }
             sample_id = f"rftrans62_{split}_{frame_id:06d}"
+            metadata_path = root_path / paths["metadata"]
             hashes = (
                 {
                     "rgb_sha256": sha256_file(root_path / paths["rgb"]),
@@ -132,18 +147,21 @@ def scan_rftrans(
                     depth_reference_path=paths["reference"].as_posix(),
                     mask_path=paths["mask"].as_posix(),
                     metadata_path=paths["metadata"].as_posix(),
-                    leakage_group_id=sample_id,
-                    group_confidence="generated_frame_with_recorder",
+                    leakage_group_id=recorder_scene_group(metadata_path),
+                    group_confidence="full_recorder_scene_fingerprint_unique_in_release",
                     depth_encoding="rftrans_ideal_png_u16_3_over_65536",
                     depth_coordinate="optical_z",
                     invalid_rule_id="raw_zero_invalid_v1",
                     mask_rule_id="rftrans_exact_black_red_green_v1",
                     preprocessing_version="letterbox_384x512_v1",
-                    cad_ids=parse_recorder_cad_ids(root_path / paths["metadata"]),
+                    cad_ids=parse_recorder_cad_ids(metadata_path),
                     **hashes,
                 )
             )
     train_records = [item for item in records if item.official_split == "train"]
+    all_groups = [item.leakage_group_id for item in records]
+    if len(set(all_groups)) != len(all_groups):
+        raise PairingError("recorder scene fingerprints overlap within or across release splits")
     train = _stable_role_partition(train_records, split_seed)
     hold = [item for item in records if item.official_split == "valid"]
     return [*train, *hold]

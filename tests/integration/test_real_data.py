@@ -29,6 +29,10 @@ def test_frozen_manifest_roles_and_rules() -> None:
     assert {item.depth_encoding for item in records} == {
         "rftrans_ideal_png_u16_3_over_65536"
     }
+    assert len({item.leakage_group_id for item in records}) == 6000
+    assert {item.group_confidence for item in records} == {
+        "full_recorder_scene_fingerprint_unique_in_release"
+    }
 
 
 @pytest.mark.skipif(not MANIFEST.is_file(), reason="local RFTrans assets unavailable")

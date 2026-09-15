@@ -20,16 +20,36 @@ def summarize_candidate(
         raise ValueError("oracle candidate and baseline need the same nonempty sample set")
     ids = sorted(base)
 
-    def values(table: dict[str, dict[str, Any]], region: str) -> np.ndarray:
-        raw = [table[item]["metrics"][region]["mae_mm"] for item in ids]
-        return np.asarray([item for item in raw if item is not None], dtype=np.float64)
+    for sample_id in ids:
+        if base[sample_id].get("leakage_group_id") != changed[sample_id].get(
+            "leakage_group_id"
+        ):
+            raise ValueError("oracle baseline/candidate group IDs differ")
 
-    base_t = values(base, "transparent")
-    changed_t = values(changed, "transparent")
-    if base_t.shape != changed_t.shape or base_t.size == 0:
-        raise ValueError("oracle samples need paired transparent metrics")
-    base_b, changed_b = values(base, "background"), values(changed, "background")
-    base_e, changed_e = values(base, "edge"), values(changed, "edge")
+    def group_values(table: dict[str, dict[str, Any]], region: str) -> dict[str, float]:
+        grouped: dict[str, list[float]] = {}
+        for sample_id in ids:
+            value = table[sample_id]["metrics"][region]["mae_mm"]
+            if value is not None:
+                group = table[sample_id]["leakage_group_id"]
+                grouped.setdefault(group, []).append(float(value))
+        return {group: float(np.mean(values)) for group, values in grouped.items()}
+
+    def paired(region: str) -> tuple[np.ndarray, np.ndarray, list[str]]:
+        base_groups = group_values(base, region)
+        changed_groups = group_values(changed, region)
+        groups = sorted(set(base_groups) & set(changed_groups))
+        if not groups:
+            raise ValueError(f"no paired groups for oracle region {region}")
+        return (
+            np.asarray([base_groups[group] for group in groups], dtype=np.float64),
+            np.asarray([changed_groups[group] for group in groups], dtype=np.float64),
+            groups,
+        )
+
+    base_t, changed_t, transparent_groups = paired("transparent")
+    base_b, changed_b, _ = paired("background")
+    base_e, changed_e, _ = paired("edge")
     tolerance_b = max(minimum_tolerance_mm, relative_tolerance * float(base_b.mean()))
     tolerance_e = max(minimum_tolerance_mm, relative_tolerance * float(base_e.mean()))
     improvement = base_t - changed_t
@@ -41,9 +61,10 @@ def summarize_candidate(
         and regression_e <= tolerance_e
     )
     return {
-        "samples": int(improvement.size),
+        "samples": len(ids),
+        "groups": len(transparent_groups),
         "transparent_improvement_mean_mm": float(improvement.mean()),
-        "transparent_improvement_per_sample_mm": improvement.tolist(),
+        "transparent_improvement_per_group_mm": improvement.tolist(),
         "background_regression_mm": regression_b,
         "background_tolerance_mm": tolerance_b,
         "edge_regression_mm": regression_e,
@@ -55,7 +76,7 @@ def summarize_candidate(
 def confirm_candidate(
     summary: dict[str, Any], *, resamples: int, seed: int, minimum_samples: int
 ) -> dict[str, Any]:
-    differences = np.asarray(summary["transparent_improvement_per_sample_mm"], dtype=np.float64)
+    differences = np.asarray(summary["transparent_improvement_per_group_mm"], dtype=np.float64)
     if differences.size < minimum_samples:
         return {
             **summary,

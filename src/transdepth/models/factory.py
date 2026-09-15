@@ -38,7 +38,10 @@ def build_predictor(
         config["backbone"]["checkpoint"],
         config["backbone"]["checkpoint_sha256"],
     )
-    features = DinoV3Features(backbone)
+    features = DinoV3Features(
+        backbone,
+        tuple(int(item) for item in config["backbone"]["feature_blocks_0based"]),
+    )
     features.activation_checkpoint_suffix = bool(
         config["runtime"].get("activation_checkpoint_suffix", True)
     )
@@ -63,9 +66,26 @@ def build_predictor(
         checkpoint = load_checkpoint(fork_checkpoint)
         if checkpoint.get("experiment_kind") != "t0":
             raise ConfigError("H1/H2 must fork from a T0 checkpoint")
-        load_trainable_state(predictor, checkpoint["trainable_state"])
+        if checkpoint.get("backbone_sha256") != config["backbone"]["checkpoint_sha256"]:
+            raise ConfigError("T0 fork backbone identity mismatch")
+        load_trainable_state(
+            predictor,
+            checkpoint["trainable_state"],
+            allowed_missing_substrings=("q_down", "q_up", "k_down", "k_up"),
+        )
         config["training"]["fork_from"] = str(Path(fork_checkpoint).resolve(strict=True))
     if trained_checkpoint is not None:
         checkpoint = load_checkpoint(trained_checkpoint)
+        if checkpoint.get("backbone_sha256") != config["backbone"]["checkpoint_sha256"]:
+            raise ConfigError("trained checkpoint backbone identity mismatch")
+        expected_spec = {
+            "selected_block": config["far"].get("selected_block"),
+            "selected_head": config["far"].get("selected_head"),
+            "beta": config["far"].get("beta"),
+            "rank": config["far"]["rank"],
+            "eta": config["far"]["eta"],
+        }
+        if checkpoint.get("model_spec") != expected_spec:
+            raise ConfigError("trained checkpoint model identity mismatch")
         load_trainable_state(predictor, checkpoint["trainable_state"])
     return predictor

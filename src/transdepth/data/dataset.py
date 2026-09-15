@@ -63,6 +63,8 @@ class RFTransDataset(Dataset[Sample]):
                 "role": record.assigned_role,
                 "frame_id": record.frame_id,
                 "cad_ids": list(record.cad_ids),
+                "leakage_group_id": record.leakage_group_id,
+                "group_confidence": record.group_confidence,
                 "geometry": bundle.geometry,
             },
         )

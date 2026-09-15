@@ -168,8 +168,8 @@ def summarize_audit(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "roles": roles,
         "important_limitations": [
             "PNG/EXR agreement validates storage consistency, not first-surface geometry alone.",
-            "Recorder metadata supports per-generated-frame groups; "
-            "no repeated-capture scene ID exists.",
+            "Full recorder fingerprints define generated-scene groups; "
+            "all 5000 training fingerprints are unique in this release.",
             "No R_hold labels were read by this audit.",
         ],
     }

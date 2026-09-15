@@ -4,6 +4,7 @@ from transdepth.oracle.statistics import confirm_candidate, summarize_candidate
 def _row(sample_id: str, transparent: float, background: float, edge: float):
     return {
         "sample_id": sample_id,
+        "leakage_group_id": f"group-{sample_id}",
         "metrics": {
             "transparent": {"mae_mm": transparent},
             "background": {"mae_mm": background},

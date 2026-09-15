@@ -17,14 +17,30 @@ _IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png"}
 
 def discover_cleargrasp_rgb(root: str | Path) -> list[Path]:
     base = Path(root).expanduser().resolve(strict=True)
-    candidates = []
+    candidates: dict[str, Path] = {}
     for path in base.rglob("*"):
         if not path.is_file() or path.suffix.lower() not in _IMAGE_SUFFIXES:
             continue
         name = path.name.lower()
-        if name.endswith("-transparent-rgb-img.jpg") or name.endswith("-rgb.jpg"):
-            candidates.append(path)
-    return sorted(candidates)
+        suffix = next(
+            (
+                item
+                for item in ("-transparent-rgb-img.jpg", "-rgb.jpg")
+                if name.endswith(item)
+            ),
+            None,
+        )
+        if suffix is None:
+            continue
+        relative = path.relative_to(base).as_posix()
+        identity = relative[: -len(suffix)]
+        if identity in candidates:
+            raise ValueError(
+                f"multiple ClearGrasp RGB variants share identity {identity}: "
+                f"{candidates[identity]} and {path}"
+            )
+        candidates[identity] = path
+    return sorted(candidates.values())
 
 
 class RgbOnlyDataset(Dataset[RGBSample]):

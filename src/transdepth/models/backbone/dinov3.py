@@ -76,17 +76,50 @@ def verify_h16plus_structure(model: nn.Module) -> None:
         raise RuntimeError("DINOv3 block or storage-token identity mismatch")
     if model.rope_embed.dtype != torch.float32 or model.rope_embed.normalize_coords != "separate":
         raise RuntimeError("DINOv3 RoPE identity mismatch")
+    rope = model.rope_embed
+    if (
+        rope.base != 100
+        or rope.rescale_coords != 2
+        or rope.shift_coords is not None
+        or rope.jitter_coords is not None
+    ):
+        raise RuntimeError("DINOv3 RoPE parameter mismatch")
     for block in model.blocks:
-        if tuple(block.attn.qkv.weight.shape) != (3840, 1280):
+        attention = block.attn
+        if attention.num_heads != 20 or tuple(attention.qkv.weight.shape) != (3840, 1280):
             raise RuntimeError("DINOv3 packed QKV shape mismatch")
+        if attention.qkv.bias is None or not hasattr(attention.qkv, "bias_mask"):
+            raise RuntimeError("DINOv3 masked key-bias projection is missing")
+        bias_mask = attention.qkv.bias_mask
+        if not (
+            bool((bias_mask[:1280] == 1).all())
+            and bool((bias_mask[1280:2560] == 0).all())
+            and bool((bias_mask[2560:] == 1).all())
+        ):
+            raise RuntimeError("DINOv3 key-bias mask mismatch")
+        if block.norm1.eps != 1e-5 or block.norm2.eps != 1e-5:
+            raise RuntimeError("DINOv3 LayerNorm epsilon mismatch")
+        mlp = block.mlp
+        if not all(hasattr(mlp, name) for name in ("w1", "w2", "w3")):
+            raise RuntimeError("DINOv3 H+/16 must use SwiGLU")
+        if (
+            mlp.w1.out_features != 5120
+            or mlp.w2.out_features != 5120
+            or mlp.w3.in_features != 5120
+        ):
+            raise RuntimeError("DINOv3 SwiGLU hidden width mismatch")
 
 
 class DinoV3Features(nn.Module):
     feature_blocks = (7, 15, 23, 31)
 
-    def __init__(self, backbone: nn.Module) -> None:
+    def __init__(
+        self, backbone: nn.Module, feature_blocks: tuple[int, ...] = (7, 15, 23, 31)
+    ) -> None:
         super().__init__()
         verify_h16plus_structure(backbone)
+        if feature_blocks != self.feature_blocks:
+            raise ValueError("this locked H+/16 protocol requires feature blocks 7,15,23,31")
         self.backbone = backbone.requires_grad_(False).eval()
         self.adapter: FARSelfAttention | None = None
         self.activation_checkpoint_suffix = True

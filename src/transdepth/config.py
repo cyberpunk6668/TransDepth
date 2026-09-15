@@ -103,11 +103,16 @@ def validate_config(config: dict[str, Any]) -> None:
     backbone = require(config, "backbone")
     expected = {
         "hub_entry": "dinov3_vith16plus",
+        "repo_commit": "6876159a11b4df116f30f667f8c9888617df0751",
+        "checkpoint_format": "meta_pth_state_dict",
+        "feature_blocks_0based": [7, 15, 23, 31],
         "feature_width": 1280,
         "depth": 32,
         "num_heads": 20,
+        "head_dim": 64,
         "prefix_tokens": 5,
         "patch_size": 16,
+        "rope_dtype": "fp32",
     }
     for key, value in expected.items():
         if backbone.get(key) != value:

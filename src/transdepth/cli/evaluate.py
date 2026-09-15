@@ -32,17 +32,30 @@ def _summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
     for region in regions:
         result[region] = {}
         for metric in metrics:
-            values = [row["metrics"][region][metric] for row in rows]
-            finite = [value for value in values if value is not None]
-            result[region][metric] = float(np.mean(finite)) if finite else None
+            grouped: dict[str, list[float]] = {}
+            for row in rows:
+                value = row["metrics"][region][metric]
+                if value is not None:
+                    grouped.setdefault(row["leakage_group_id"], []).append(float(value))
+            group_values = [float(np.mean(values)) for values in grouped.values()]
+            result[region][metric] = (
+                float(np.mean(group_values)) if group_values else None
+            )
         result[region]["images"] = sum(
             row["metrics"][region]["pixels"] > 0 for row in rows
+        )
+        result[region]["groups"] = len(
+            {
+                row["leakage_group_id"]
+                for row in rows
+                if row["metrics"][region]["pixels"] > 0
+            }
         )
     return {
         "schema_version": "rftrans_evaluation_summary_v1",
         "status": "complete",
         "samples": len(rows),
-        "aggregation": "image_macro; one generated frame is one group",
+        "aggregation": "image mean within recorder-scene group, then group macro",
         "regions": result,
     }
 
@@ -73,7 +86,14 @@ def main() -> None:
             sample.mask[0].numpy(),
             sample.content_mask[0].numpy(),
         )
-        rows.append({"sample_id": sample_id, "metrics": metrics})
+        record = dataset.records[record_to_index[sample_id]]
+        rows.append(
+            {
+                "sample_id": sample_id,
+                "leakage_group_id": record.leakage_group_id,
+                "metrics": metrics,
+            }
+        )
     output = Path(args.output)
     atomic_write_jsonl(rows, output / "per_image.jsonl")
     atomic_write_json(_summary(rows), output / "summary.json")

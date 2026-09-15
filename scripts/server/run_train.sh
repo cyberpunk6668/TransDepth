@@ -21,6 +21,7 @@ export PIP_CACHE_DIR="$storage/cache/pip"
 export TORCH_HOME="$storage/cache/torch"
 export HF_HOME="$storage/cache/huggingface"
 export OMP_NUM_THREADS=1
+export CUBLAS_WORKSPACE_CONFIG=":4096:8"
 
 cd "$root"
 exec "$python" -m torch.distributed.run \

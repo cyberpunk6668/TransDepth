@@ -45,7 +45,13 @@ def baseline_predictions(
         prediction = output[0, 0].float().cpu().numpy()
         sample_id = sample.metadata["sample_id"]
         predictions[sample_id] = prediction
-        rows.append({"sample_id": sample_id, "metrics": _metrics(sample, prediction)})
+        rows.append(
+            {
+                "sample_id": sample_id,
+                "leakage_group_id": sample.metadata["leakage_group_id"],
+                "metrics": _metrics(sample, prediction),
+            }
+        )
     return rows, predictions
 
 
@@ -81,5 +87,11 @@ def oracle_predictions(
         prediction = output[0, 0].float().cpu().numpy()
         sample_id = sample.metadata["sample_id"]
         predictions[sample_id] = prediction
-        rows.append({"sample_id": sample_id, "metrics": _metrics(sample, prediction)})
+        rows.append(
+            {
+                "sample_id": sample_id,
+                "leakage_group_id": sample.metadata["leakage_group_id"],
+                "metrics": _metrics(sample, prediction),
+            }
+        )
     return rows, predictions

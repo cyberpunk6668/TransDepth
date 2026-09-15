@@ -20,11 +20,14 @@ from torch.nn.parallel import DistributedDataParallel
 
 from transdepth.config import config_sha256, dump_resolved
 from transdepth.data.dataset import RFTransDataset
+from transdepth.data.depth_io import sha256_file
 from transdepth.data.schema import TrainBatch, collate_samples
 from transdepth.engine.checkpoint import (
     atomic_torch_save,
+    capture_rng_state,
     load_checkpoint,
     load_trainable_state,
+    restore_rng_state,
     trainable_state_dict,
 )
 from transdepth.engine.schedule import build_global_schedule, rank_slot, schedule_sha256
@@ -48,13 +51,27 @@ def _barrier(world_size: int) -> None:
         dist.barrier()
 
 
-def _set_seed(seed: int, rank: int) -> None:
+def _collect_rng_states(world_size: int) -> list[dict[str, Any]]:
+    local = capture_rng_state()
+    if world_size == 1:
+        return [local]
+    gathered: list[dict[str, Any] | None] = [None] * world_size
+    dist.all_gather_object(gathered, local)
+    if any(item is None for item in gathered):
+        raise RuntimeError("failed to gather rank RNG states")
+    return [item for item in gathered if item is not None]
+
+
+def _set_seed(seed: int, rank: int, deterministic: bool) -> None:
     random.seed(seed + rank)
     np.random.seed(seed + rank)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
     torch.backends.cuda.matmul.allow_tf32 = False
     torch.backends.cudnn.allow_tf32 = False
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = deterministic
+    torch.use_deterministic_algorithms(deterministic)
 
 
 def _optimizer(model: nn.Module, config: dict[str, Any]) -> torch.optim.Optimizer:
@@ -171,6 +188,9 @@ def _checkpoint_payload(
     next_update: int,
     plan_hash: str,
     best_transparent_mae_m: float | None,
+    manifest_sha256: str,
+    oracle_lock_sha256: str | None,
+    rng_state_by_rank: list[dict[str, Any]],
 ) -> dict[str, Any]:
     return {
         "schema_version": "td_checkpoint_v1",
@@ -182,6 +202,8 @@ def _checkpoint_payload(
         "config_sha256": config_sha256(config),
         "schedule_sha256": plan_hash,
         "backbone_sha256": config["backbone"]["checkpoint_sha256"],
+        "manifest_sha256": manifest_sha256,
+        "oracle_lock_sha256": oracle_lock_sha256,
         "model_spec": {
             "selected_block": config["far"].get("selected_block"),
             "selected_head": config["far"].get("selected_head"),
@@ -190,6 +212,7 @@ def _checkpoint_payload(
             "eta": config["far"]["eta"],
         },
         "best_transparent_mae_m": best_transparent_mae_m,
+        "rng_state_by_rank": rng_state_by_rank,
     }
 
 
@@ -207,10 +230,13 @@ def train(
         raise RuntimeError(
             f"launch world_size={world_size}, config requires {config['runtime']['world_size']}"
         )
+    visible = os.environ.get("CUDA_VISIBLE_DEVICES", "").replace(" ", "")
+    if world_size == 3 and visible != "0,3,5":
+        raise RuntimeError("three-rank training requires CUDA_VISIBLE_DEVICES=0,3,5")
     torch.cuda.set_device(local_rank)
     device = torch.device("cuda", local_rank)
     seed = int(config["runtime"]["seed"])
-    _set_seed(seed, rank)
+    _set_seed(seed, rank, bool(config["runtime"]["deterministic"]))
     kind = config["experiment"]["kind"]
     use_lora = kind in {"h1", "h2"}
     if use_lora and fork_from is None and resume is None:
@@ -233,13 +259,37 @@ def train(
         resume_checkpoint = load_checkpoint(resume)
         if resume_checkpoint["experiment_kind"] != kind:
             raise ValueError("resume checkpoint experiment kind mismatch")
+        if resume_checkpoint["config_sha256"] != config_sha256(config):
+            raise ValueError("resume requires the original run's resolved configuration")
+        if resume_checkpoint["backbone_sha256"] != config["backbone"]["checkpoint_sha256"]:
+            raise ValueError("resume backbone identity mismatch")
         load_trainable_state(predictor, resume_checkpoint["trainable_state"])
         optimizer.load_state_dict(resume_checkpoint["optimizer_state"])
         scheduler.load_state_dict(resume_checkpoint["scheduler_state"])
         start_update = int(resume_checkpoint["next_update"])
         best_mae = resume_checkpoint.get("best_transparent_mae_m")
+        rng_states = resume_checkpoint["rng_state_by_rank"]
+        if len(rng_states) != world_size:
+            raise ValueError("resume RNG world-size mismatch")
+        restore_rng_state(rng_states[rank])
 
     manifest = Path(config["storage"]["manifests"]) / "rftrans_only_v1.jsonl"
+    manifest_hash = sha256_file(manifest)
+    oracle_lock = config["training"].get("oracle_lock")
+    oracle_lock_hash = sha256_file(oracle_lock) if oracle_lock else None
+    if fork_from is not None:
+        fork_checkpoint = load_checkpoint(fork_from)
+        if fork_checkpoint.get("manifest_sha256") != manifest_hash:
+            raise ValueError("T0 fork RFTrans manifest identity mismatch")
+        if oracle_lock is not None:
+            lock = json.loads(Path(oracle_lock).read_text(encoding="utf-8"))
+            if lock.get("t0_sha256") != sha256_file(fork_from):
+                raise ValueError("Oracle lock was confirmed on a different T0 checkpoint")
+    if resume_checkpoint is not None:
+        if resume_checkpoint.get("manifest_sha256") != manifest_hash:
+            raise ValueError("resume RFTrans manifest identity mismatch")
+        if resume_checkpoint.get("oracle_lock_sha256") != oracle_lock_hash:
+            raise ValueError("resume Oracle lock identity mismatch")
     train_data = RFTransDataset(manifest, config["roots"]["rftrans"], {"R_train"})
     dev_data = RFTransDataset(manifest, config["roots"]["rftrans"], {"R_dev"})
     schedule = build_global_schedule(
@@ -275,6 +325,9 @@ def train(
                 ),
                 "world_size": world_size,
                 "physical_gpus": os.environ.get("CUDA_VISIBLE_DEVICES"),
+                "visible_gpu_names": [
+                    torch.cuda.get_device_name(index) for index in range(world_size)
+                ],
                 "global_batch_size": config["runtime"]["global_batch_size"],
                 "schedule_sha256": plan_hash,
                 "fork_from": str(fork_from) if fork_from else None,
@@ -333,7 +386,7 @@ def train(
                             cmax=float(config["far"]["cmax"]),
                             mass_eps=float(config["far"]["mass_eps"]),
                             max_queries_per_class=int(config["far"]["max_queries_per_class"]),
-                            query_seed=seed + update * 10_007 + microstep,
+                            query_seed=seed + update * 10_007 + microstep * world_size + rank,
                         ).loss
                     loss = depth_result.loss + float(config["loss"]["lambda_rel"]) * relation
                     (loss / accumulation).backward()
@@ -358,7 +411,7 @@ def train(
                     "gradient_norm": float(gradient_norm),
                     "learning_rates": [group["lr"] for group in optimizer.param_groups],
                     "seconds": time.perf_counter() - update_started,
-                    "peak_allocated_bytes": torch.cuda.max_memory_allocated(device),
+                    "peak_allocated_bytes": torch.cuda.max_memory_allocated(local_rank),
                 },
             )
 
@@ -373,12 +426,15 @@ def train(
                 world_size=world_size,
                 maximum=int(config["training"]["eval_max_samples"]),
             )
+            metrics["update"] = update + 1
+            current = metrics["transparent_mae_m"]
+            is_best = isinstance(current, float) and (best_mae is None or current < best_mae)
+            if is_best:
+                best_mae = current
+            best_rng_states = _collect_rng_states(world_size) if is_best else None
             if rank == 0:
-                metrics["update"] = update + 1
                 _append_jsonl(run_path / "metrics" / "dev.jsonl", metrics)
-                current = metrics["transparent_mae_m"]
-                if isinstance(current, float) and (best_mae is None or current < best_mae):
-                    best_mae = current
+                if is_best and best_rng_states is not None:
                     payload = _checkpoint_payload(
                         predictor,
                         optimizer,
@@ -388,9 +444,13 @@ def train(
                         next_update=update + 1,
                         plan_hash=plan_hash,
                         best_transparent_mae_m=best_mae,
+                        manifest_sha256=manifest_hash,
+                        oracle_lock_sha256=oracle_lock_hash,
+                        rng_state_by_rank=best_rng_states,
                     )
                     atomic_torch_save(payload, run_path / "checkpoints" / "best.pt")
         if should_save or update + 1 == updates:
+            last_rng_states = _collect_rng_states(world_size)
             _barrier(world_size)
             if rank == 0:
                 payload = _checkpoint_payload(
@@ -402,6 +462,9 @@ def train(
                     next_update=update + 1,
                     plan_hash=plan_hash,
                     best_transparent_mae_m=best_mae,
+                    manifest_sha256=manifest_hash,
+                    oracle_lock_sha256=oracle_lock_hash,
+                    rng_state_by_rank=last_rng_states,
                 )
                 atomic_torch_save(payload, run_path / "checkpoints" / "last.pt")
             _barrier(world_size)
