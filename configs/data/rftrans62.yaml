@@ -1,0 +1,22 @@
+data:
+  source: rftrans_62cad
+  include_top_level_splits: [train, valid]
+  excluded_roots: [cleargrasp, Resources]
+  modalities:
+    rgb: RGB/rgb_{frame_id}.png
+    depth: depth/depth_{frame_id}.png
+    depth_reference: depth/depth_{frame_id}.exr
+    mask: mask/mask_{frame_id}.png
+    metadata: recorder/record_{frame_id}.txt
+  expected_counts:
+    train: 5000
+    valid: 1000
+  exr_reference:
+    channel: Y
+    source_pixel_type: HALF
+  mask_colors:
+    background:
+      - [0, 0, 0]
+      - [255, 0, 0]
+    transparent: [0, 255, 0]
+    otherwise: ignore

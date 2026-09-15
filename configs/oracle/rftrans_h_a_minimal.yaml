@@ -1,0 +1,19 @@
+schema_version: rftrans_oracle_minimal_v1
+candidates:
+  blocks_0based: [15, 23, 31]
+  heads_per_block: 2
+  head_seed: 17
+  betas: [0.25, 0.5]
+search:
+  role: R_select
+  samples: 16
+confirm:
+  role: R_confirm
+  samples: 32
+  minimum_samples: 20
+  bootstrap_resamples: 2000
+  bootstrap_seed: 17
+constraints:
+  identity_depth_atol_m: 0.0001
+  degradation_min_tolerance_mm: 1.0
+  degradation_relative_tolerance: 0.02

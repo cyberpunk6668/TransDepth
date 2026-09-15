@@ -1,0 +1,70 @@
+schema_version: transdepth_minimal_v1
+project:
+  name: TransDepth
+  protocol_id: rftrans_only_minimal_v1
+runtime:
+  seed: 17
+  allowed_physical_gpus: [0, 3, 5]
+  world_size: 3
+  microbatch_per_gpu: 1
+  gradient_accumulation: 4
+  global_batch_size: 12
+  num_workers_per_rank: 2
+  amp_dtype: bf16
+  deterministic: true
+  activation_checkpoint_suffix: true
+data:
+  source: rftrans_62cad
+  release_id: robotflow_rftrans_local_v1
+  canvas_hw: [384, 512]
+  depth_encoding: rftrans_ideal_png_u16_3_over_65536
+  depth_scale_to_m: 0.0000457763671875
+  depth_coordinate: optical_z
+  zero_is_invalid: true
+  max_is_invalid: false
+  mask_rule: rftrans_exact_black_red_green_v1
+  split_seed: 17
+  role_counts:
+    R_train: 4000
+    R_dev: 500
+    R_select: 250
+    R_confirm: 250
+    R_hold: 1000
+  patch:
+    size: 16
+    min_valid_fraction: 0.9
+    min_class_fraction: 0.9
+    max_log_depth_iqr: 0.1
+model:
+  architecture: h_a
+  decoder_width: 128
+  positive_depth_epsilon: 0.000001
+far:
+  enabled: false
+  selected_block: null
+  selected_head: null
+  rank: 4
+  eta: 1.0
+  beta: null
+  sigma_z: 0.1
+  cmax: 4.0
+  mass_eps: 1.0e-8
+  max_queries_per_class: 128
+loss:
+  depth_delta: 0.1
+  lambda_rel: 0.0
+training:
+  phase: t0
+  updates: 300
+  warmup_updates: 20
+  decoder_lr: 0.0001
+  lora_lr: 0.0001
+  weight_decay: 0.01
+  grad_clip_norm: 1.0
+  eval_every: 50
+  eval_max_samples: 48
+  save_every: 50
+  train_roles: [R_train]
+  eval_roles: [R_dev]
+  fork_from: null
+  oracle_lock: null

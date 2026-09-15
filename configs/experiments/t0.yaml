@@ -1,0 +1,15 @@
+includes:
+  - ../base.yaml
+  - ../data/rftrans62.yaml
+  - ../protocol/rftrans_only_minimal_v1.yaml
+  - ../backbone/dinov3_h16plus.yaml
+  - ../model/h_a.yaml
+experiment:
+  name: rftrans_h_a_t0_seed17
+  kind: t0
+far:
+  enabled: false
+training:
+  phase: t0
+  updates: 300
+  warmup_updates: 20

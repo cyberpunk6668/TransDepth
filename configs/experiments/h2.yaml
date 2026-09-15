@@ -1,0 +1,19 @@
+includes:
+  - ../base.yaml
+  - ../data/rftrans62.yaml
+  - ../protocol/rftrans_only_minimal_v1.yaml
+  - ../backbone/dinov3_h16plus.yaml
+  - ../model/h_a.yaml
+experiment:
+  name: rftrans_h_a_h2_seed17
+  kind: h2
+far:
+  enabled: true
+  rank: 4
+  eta: 1.0
+loss:
+  lambda_rel: 0.1
+training:
+  phase: t1
+  updates: 300
+  warmup_updates: 20

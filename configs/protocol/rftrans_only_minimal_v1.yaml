@@ -1,0 +1,22 @@
+project:
+  protocol_id: rftrans_only_minimal_v1
+protocol:
+  training_sources: [rftrans_62cad]
+  inference_only_sources: [cleargrasp]
+  role_policy:
+    official_train:
+      R_train: 0.80
+      R_dev: 0.10
+      R_select: 0.05
+      R_confirm: 0.05
+    official_valid:
+      R_hold: 1.0
+  comparison:
+    primary: H2_minus_H1
+    paired_seed: 17
+    practical_relative_mae_improvement: 0.02
+    bootstrap_resamples: 2000
+  limitations:
+    - ClearGrasp labels are never used for training or model selection.
+    - Without original ClearGrasp data, cross-domain inference remains pending.
+    - RFTrans-only evidence cannot establish real-domain effectiveness.

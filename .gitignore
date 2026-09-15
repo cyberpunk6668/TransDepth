@@ -1,0 +1,41 @@
+# Python / editors
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+build/
+dist/
+.venv/
+.idea/
+.vscode/
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+configs/paths.local.yaml
+configs/inference.paths.local.yaml
+*.pem
+*.key
+
+# Restricted or large assets
+/artifacts/
+/outputs/
+/runs/
+/weights/
+/checkpoints/
+/data/
+/datasets/
+/wandb/
+*.pth
+*.pt
+*.ckpt
+*.safetensors
+*.zip
+*.zip.[0-9][0-9][0-9]
+*.tar
+*.tar.gz
+
+# Historical local scratch files are not project sources
+/tmp/

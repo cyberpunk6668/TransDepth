@@ -1,0 +1,7 @@
+model:
+  architecture: h_a
+  decoder: dpt
+  decoder_width: 128
+  group_norm_groups: 8
+  activation: gelu_exact
+  interpolation_align_corners: false

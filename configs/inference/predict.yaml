@@ -1,0 +1,12 @@
+includes:
+  - ../base.yaml
+  - ../protocol/rftrans_only_minimal_v1.yaml
+  - ../backbone/dinov3_h16plus.yaml
+  - ../model/h_a.yaml
+experiment:
+  name: transdepth_rgb_only_predict
+  kind: predict
+training:
+  phase: inference
+  train_roles: []
+  eval_roles: []

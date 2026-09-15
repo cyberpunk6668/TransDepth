@@ -1,0 +1,20 @@
+backbone:
+  backend: meta_native
+  hub_entry: dinov3_vith16plus
+  repo_commit: 6876159a11b4df116f30f667f8c9888617df0751
+  checkpoint_filename: dinov3_vith16plus_pretrain_lvd1689m-7c1da9a5.pth
+  checkpoint_format: meta_pth_state_dict
+  pretrain_dataset: LVD1689M
+  input_hw: [384, 512]
+  feature_blocks_0based: [7, 15, 23, 31]
+  feature_width: 1280
+  depth: 32
+  num_heads: 20
+  head_dim: 64
+  prefix_tokens: 5
+  patch_size: 16
+  backbone_eval_mode: true
+  backbone_weights_trainable: false
+  rope_dtype: fp32
+  rgb_mean: [0.485, 0.456, 0.406]
+  rgb_std: [0.229, 0.224, 0.225]
